@@ -107,18 +107,5 @@ void atuliza_PID()
     Serial.println(serialp);
     Serial.println(seriali);
     Serial.println(seriald);
-    
-
-    /*
-    String valoresPID=Serial.readString();
-    char *cstr[20];
-    strcpy(*cstr, valoresPID.c_str());
-    char virgula = ',';
-    kp=atof(strtok(*cstr,&virgula));
-    ki=atof(strtok(*cstr,&virgula));
-    kd=atof(strtok(*cstr,&virgula));
-  
-
-  kp=atof(Serial.readString().c_str());
-  */}
+  }
 }
