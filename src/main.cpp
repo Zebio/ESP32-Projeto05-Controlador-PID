@@ -9,17 +9,18 @@
 
 
 /*---------------- Constantes de Projeto   ---------------*/
-#define dt 100
+#define dt 0.1
 
 
 
 /*---------------- constantes globais      ---------------*/
 const int numChars  = 32;
-const int luminosidadeDesejada  = 1500;
+const int Setpoint  = 2500;
+const float zero=0;
 
 
 /*---------------- variáveis GLobais  --------------------*/
-float     kp =0,
+float     kp =1,
           ki =0,
           kd =0;
 char      charsRecebidos[numChars];
@@ -37,16 +38,18 @@ float controle_PID(float,float);  //realiza o cálculo baseado nas constantes, v
 /*--------------- Inicialização do Sistema----------------*/
 void setup() {
   Serial.begin(115200);   //inicia a comunicação serial 
+  ledcSetup(0,10000, 12); //inicia o canal PWM 0, com 10000 de frequencia e resolução de 12 bits
+
   ledcAttachPin(led1,0);  //liga o led1 ao canal PWM 0
   ledcAttachPin(led2,0);  //liga o led2 ao canal PWM 0
-  ledcSetup(0,10000, 12); //inicia o canal PWM 0, com 10000 de frequencia e resolução de 12 bits
-}
 
+}
 
 /*--------------- Loop infinito -------------------------*/
 void loop() {
   recebeDadosSeriais(); //verifica se foi mandado algum dado pela porta serial, se sim seta a flag "novos dados"
                         //e armazena no char[] charsRecebidos
+
   if (novosDados)       //verifica a flag
   {
     strcpy(charTemporario, charsRecebidos); //se foram enviados dados pelo serial, copia esses dados para
@@ -56,30 +59,32 @@ void loop() {
     novosDados =false;  //agora podemos voltar a flag ao estado inicial
   }
 
-  float sensor_luz=analogRead(pin_sensor_luz);  //usa o adc para receber o valor de luminosidade atual
-  Serial.print(sensor_luz);                   //imprimimos a luminosidade atualo no Serial Monitor
+  uint16_t sensor_luz=4097-analogRead(pin_sensor_luz);  //usa o adc para receber o valor de luminosidade atual
 
-  float pid=(controle_PID(sensor_luz,luminosidadeDesejada))+2048; //chamamos a função de controle PID
+
+  float pid=(controle_PID(sensor_luz,Setpoint)); //chamamos a função de controle PID
                                                                   //baseado no valor lido "sensor_luz"
-                                                                  //e no valor desejado "luminosidadeDesejada"
+                                                                  //e no valor desejado "Setpoint"
                                                                   //somamos com 2048 pois é a metade do PWM de 12 bits
-  
-  if (pid>4095)   //Nesses 2 IFs vamos garantir que se estourarmos os limites do PWM (0 a 4095) manteremos
-    pid =4095;    //os limites na borda.
-    
-  if (pid<0)
-    pid =0;
+
+  if(pid<0)
+   pid=0;  
+  if(pid>4094)
+    pid=4094;
+  Serial.print("Leitura:"); 
+  Serial.print(sensor_luz);                   //imprimimos a luminosidade atualo no Serial Monitor
+  Serial.print("  PID:");
+  Serial.print(pid);
+  Serial.print(" 0:");
+  Serial.print(zero);
+  Serial.print(" Setpoint:");
+  Serial.println(
+Setpoint);
+
 
   ledcWrite(0,pid); //aqui escrevemos no canal 0 (led1 e led2) do PWM o valor processado pelo pid
-
-  Serial.print("  kp: ");
-  Serial.print(kp);
-  Serial.print("ki: ");
-  Serial.print(ki);
-  Serial.print("kd: ");
-  Serial.println(kd);
   
-  delay(dt);        //delay em ms do mesmo valor da integral e derivada do pid.
+  delay(dt*1000);        //delay em ms do mesmo valor da integral e derivada do pid.
 }
 
 
@@ -144,23 +149,23 @@ void atualiza_PID()
 
 }
 
-float controle_PID(float medida,float setpoint)
+float controle_PID(float output,float setpoint)
 {
-  float  erro;
-  float proporcional;
-  float derivativa;
-  static float ultima_medida;
-  static float integral;
+  static float output_anterior,integral;
 
-  erro = setpoint - medida;
+  float        erro,proporcional,derivativa;
+
+  erro = setpoint - output;
 
   proporcional = kp*erro;
 
-  integral -= (erro*ki)*(dt/1000.0);
+  integral = integral + (erro*ki) * (dt);
 
-  derivativa = ((ultima_medida - medida)*kd)/(dt/1000.0);
+  derivativa = ((output_anterior - output)*kd) / (dt);
 
-  ultima_medida = medida;
+  output_anterior = output;
 
-  return (proporcional + integral + derivativa);
+  float sinal_de_controle=(proporcional+integral+derivativa);
+
+  return sinal_de_controle;
 }
